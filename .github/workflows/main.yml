@@ -1,0 +1,58 @@
+name: Playwright Tests with Allure Report
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  playwright-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      # 🔥 Run tests (allow failures so Allure still generates)
+      - name: Run Playwright tests
+        run: npx playwright test
+        continue-on-error: true
+
+      # 🔹 Install Allure CLI
+      - name: Install Allure CLI
+        run: npm install -g allure-commandline
+
+      # 🔹 Get latest Allure results folder (timestamp-based)
+      - name: Detect latest Allure results directory
+        id: allure_dir
+        run: |
+          LATEST_DIR=$(ls -td reports/allure-results/Test_Report-* | head -n 1)
+          echo "LATEST_ALLURE_RESULTS=$LATEST_DIR" >> $GITHUB_ENV
+          echo "Using Allure results from: $LATEST_DIR"
+
+      # 🔹 Generate Allure report
+      - name: Generate Allure Report
+        run: |
+          allure generate "$LATEST_ALLURE_RESULTS" --clean -o allure-report
+
+      # 🔹 Upload Allure report artifact
+      - name: Upload Allure Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
